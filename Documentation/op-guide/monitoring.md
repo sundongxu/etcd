@@ -1,5 +1,7 @@
 ---
 title: Monitoring etcd
+weight: 4500
+description: Monitoring etcd for system health & cluster debugging
 ---
 
 Each etcd server provides local monitoring information on its client port through http endpoints. The monitoring data is useful for both system health checking and cluster debugging.
@@ -106,7 +108,7 @@ Now Prometheus will scrape etcd metrics every 10 seconds.
 
 ### Alerting
 
-There is a set of default alerts for etcd v3 clusters for [Prometheus 1.x](./etcd3_alert.rules) as well as [Prometheus 2.x](./etcd3_alert.rules.yml).
+There is a set of [default alerts](../etcd-mixin) for etcd v3 clusters for Prometheus.
 
 > Note: `job` labels may need to be adjusted to fit a particular need. The rules were written to apply to a single cluster so it is recommended to choose labels unique to a cluster.
 

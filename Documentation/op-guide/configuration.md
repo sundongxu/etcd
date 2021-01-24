@@ -1,5 +1,7 @@
 ---
 title: Configuration flags
+weight: 4050
+description: "etcd configuration: files, flags, and environment variables"
 ---
 
 etcd is configurable through a configuration file, various command-line flags, and environment variables.
@@ -437,6 +439,11 @@ Follow the instructions when using these flags.
 ### --bcrypt-cost
 + Specify the cost / strength of the bcrypt algorithm for hashing auth passwords. Valid values are between 4 and 31.
 + default: 10
++ env variable: (not supported)
+
+### --auth-token-ttl
++ Time (in seconds) of the auth-token-ttl. Support `--auth-token=simple` model only.
++ default: 300
 + env variable: (not supported)
 
 ## Experimental flags

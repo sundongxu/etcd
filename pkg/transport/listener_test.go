@@ -37,7 +37,7 @@ func createSelfCertEx(host string, additionalUsages ...x509.ExtKeyUsage) (*TLSIn
 	if terr != nil {
 		return nil, nil, terr
 	}
-	info, err := SelfCert(zap.NewExample(), d, []string{host + ":0"}, additionalUsages...)
+	info, err := SelfCert(zap.NewExample(), d, []string{host + ":0"}, 1, additionalUsages...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -292,14 +292,28 @@ func TestTLSInfoParseFuncError(t *testing.T) {
 	}
 	defer del()
 
-	tlsinfo.parseFunc = fakeCertificateParserFunc(tls.Certificate{}, errors.New("fake"))
+	tests := []struct {
+		info TLSInfo
+	}{
+		{
+			info: *tlsinfo,
+		},
 
-	if _, err = tlsinfo.ServerConfig(); err == nil {
-		t.Errorf("expected non-nil error from ServerConfig()")
+		{
+			info: TLSInfo{CertFile: "", KeyFile: "", TrustedCAFile: tlsinfo.CertFile, EmptyCN: true},
+		},
 	}
 
-	if _, err = tlsinfo.ClientConfig(); err == nil {
-		t.Errorf("expected non-nil error from ClientConfig()")
+	for i, tt := range tests {
+		tt.info.parseFunc = fakeCertificateParserFunc(tls.Certificate{}, errors.New("fake"))
+
+		if _, err = tt.info.ServerConfig(); err == nil {
+			t.Errorf("#%d: expected non-nil error from ServerConfig()", i)
+		}
+
+		if _, err = tt.info.ClientConfig(); err == nil {
+			t.Errorf("#%d: expected non-nil error from ClientConfig()", i)
+		}
 	}
 }
 
@@ -366,7 +380,7 @@ func TestNewListenerTLSInfoSelfCert(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpdir)
-	tlsinfo, err := SelfCert(zap.NewExample(), tmpdir, []string{"127.0.0.1"})
+	tlsinfo, err := SelfCert(zap.NewExample(), tmpdir, []string{"127.0.0.1"}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

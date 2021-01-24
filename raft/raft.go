@@ -25,10 +25,10 @@ import (
 	"sync"
 	"time"
 
-	"go.etcd.io/etcd/v3/raft/confchange"
-	"go.etcd.io/etcd/v3/raft/quorum"
-	pb "go.etcd.io/etcd/v3/raft/raftpb"
-	"go.etcd.io/etcd/v3/raft/tracker"
+	"go.etcd.io/etcd/raft/v3/confchange"
+	"go.etcd.io/etcd/raft/v3/quorum"
+	pb "go.etcd.io/etcd/raft/v3/raftpb"
+	"go.etcd.io/etcd/raft/v3/tracker"
 )
 
 // None is a placeholder node ID used when there is no leader.
@@ -116,17 +116,6 @@ func (st StateType) String() string {
 type Config struct {
 	// ID is the identity of the local raft. ID cannot be 0.
 	ID uint64
-
-	// peers contains the IDs of all nodes (including self) in the raft cluster. It
-	// should only be set when starting a new raft cluster. Restarting raft from
-	// previous configuration will panic if peers is set. peer is private and only
-	// used for testing right now.
-	peers []uint64
-
-	// learners contains the IDs of all learner nodes (including self if the
-	// local node is a learner) in the raft cluster. learners only receives
-	// entries from the leader node. It does not vote or promote itself.
-	learners []uint64
 
 	// ElectionTick is the number of Node.Tick invocations that must pass between
 	// elections. That is, if a follower does not receive any message from the
@@ -330,17 +319,6 @@ func newRaft(c *Config) *raft {
 		panic(err) // TODO(bdarnell)
 	}
 
-	if len(c.peers) > 0 || len(c.learners) > 0 {
-		if len(cs.Voters) > 0 || len(cs.Learners) > 0 {
-			// TODO(bdarnell): the peers argument is always nil except in
-			// tests; the argument should be removed and these tests should be
-			// updated to specify their nodes through a snapshot.
-			panic("cannot specify both newRaft(peers, learners) and ConfState.(Voters, Learners)")
-		}
-		cs.Voters = c.peers
-		cs.Learners = c.learners
-	}
-
 	r := &raft{
 		id:                        c.ID,
 		lead:                      None,
@@ -397,7 +375,8 @@ func (r *raft) hardState() pb.HardState {
 	}
 }
 
-// send persists state to stable storage and then sends to its mailbox.
+// send schedules persisting state to a stable storage and AFTER that
+// sending the message (as part of next Ready message processing).
 func (r *raft) send(m pb.Message) {
 	if m.From == None {
 		m.From = r.id
@@ -566,7 +545,7 @@ func (r *raft) advance(rd Ready) {
 		oldApplied := r.raftLog.applied
 		r.raftLog.appliedTo(newApplied)
 
-		if r.prs.Config.AutoLeave && oldApplied < r.pendingConfIndex && newApplied >= r.pendingConfIndex && r.state == StateLeader {
+		if r.prs.Config.AutoLeave && oldApplied <= r.pendingConfIndex && newApplied >= r.pendingConfIndex && r.state == StateLeader {
 			// If the current (and most recent, at least for this leader's term)
 			// configuration should be auto-left, initiate that now. We use a
 			// nil Data which unmarshals into an empty ConfChangeV2 and has the
@@ -766,6 +745,29 @@ func (r *raft) becomeLeader() {
 	r.logger.Infof("%x became leader at term %d", r.id, r.Term)
 }
 
+func (r *raft) hup(t CampaignType) {
+	if r.state == StateLeader {
+		r.logger.Debugf("%x ignoring MsgHup because already leader", r.id)
+		return
+	}
+
+	if !r.promotable() {
+		r.logger.Warningf("%x is unpromotable and can not campaign", r.id)
+		return
+	}
+	ents, err := r.raftLog.slice(r.raftLog.applied+1, r.raftLog.committed+1, noLimit)
+	if err != nil {
+		r.logger.Panicf("unexpected error getting unapplied entries (%v)", err)
+	}
+	if n := numOfPendingConf(ents); n != 0 && r.raftLog.committed > r.raftLog.applied {
+		r.logger.Warningf("%x cannot campaign at term %d since there are still %d pending configuration changes to apply", r.id, r.Term, n)
+		return
+	}
+
+	r.logger.Infof("%x is starting a new election at term %d", r.id, r.Term)
+	r.campaign(t)
+}
+
 // campaign transitions the raft instance to candidate state. This must only be
 // called after verifying that this is a legitimate transition.
 func (r *raft) campaign(t CampaignType) {
@@ -907,28 +909,10 @@ func (r *raft) Step(m pb.Message) error {
 
 	switch m.Type {
 	case pb.MsgHup:
-		if r.state != StateLeader {
-			if !r.promotable() {
-				r.logger.Warningf("%x is unpromotable and can not campaign; ignoring MsgHup", r.id)
-				return nil
-			}
-			ents, err := r.raftLog.slice(r.raftLog.applied+1, r.raftLog.committed+1, noLimit)
-			if err != nil {
-				r.logger.Panicf("unexpected error getting unapplied entries (%v)", err)
-			}
-			if n := numOfPendingConf(ents); n != 0 && r.raftLog.committed > r.raftLog.applied {
-				r.logger.Warningf("%x cannot campaign at term %d since there are still %d pending configuration changes to apply", r.id, r.Term, n)
-				return nil
-			}
-
-			r.logger.Infof("%x is starting a new election at term %d", r.id, r.Term)
-			if r.preVote {
-				r.campaign(campaignPreElection)
-			} else {
-				r.campaign(campaignElection)
-			}
+		if r.preVote {
+			r.hup(campaignPreElection)
 		} else {
-			r.logger.Debugf("%x ignoring MsgHup because already leader", r.id)
+			r.hup(campaignElection)
 		}
 
 	case pb.MsgVote, pb.MsgPreVote:
@@ -1344,15 +1328,11 @@ func stepFollower(r *raft, m pb.Message) error {
 		m.To = r.lead
 		r.send(m)
 	case pb.MsgTimeoutNow:
-		if r.promotable() {
-			r.logger.Infof("%x [term %d] received MsgTimeoutNow from %x and starts an election to get leadership.", r.id, r.Term, m.From)
-			// Leadership transfers never use pre-vote even if r.preVote is true; we
-			// know we are not recovering from a partition so there is no need for the
-			// extra round trip.
-			r.campaign(campaignTransfer)
-		} else {
-			r.logger.Infof("%x received MsgTimeoutNow from %x but is not promotable", r.id, m.From)
-		}
+		r.logger.Infof("%x [term %d] received MsgTimeoutNow from %x and starts an election to get leadership.", r.id, r.Term, m.From)
+		// Leadership transfers never use pre-vote even if r.preVote is true; we
+		// know we are not recovering from a partition so there is no need for the
+		// extra round trip.
+		r.hup(campaignTransfer)
 	case pb.MsgReadIndex:
 		if r.lead == None {
 			r.logger.Infof("%x no leader at term %d; dropping index reading msg", r.id, r.Term)
@@ -1489,7 +1469,7 @@ func (r *raft) restore(s pb.Snapshot) bool {
 // which is true when its own id is in progress list.
 func (r *raft) promotable() bool {
 	pr := r.prs.Progress[r.id]
-	return pr != nil && !pr.IsLearner
+	return pr != nil && !pr.IsLearner && !r.raftLog.hasPendingSnapshot()
 }
 
 func (r *raft) applyConfChange(cc pb.ConfChangeV2) pb.ConfState {
@@ -1675,7 +1655,7 @@ func (r *raft) reduceUncommittedSize(ents []pb.Entry) {
 func numOfPendingConf(ents []pb.Entry) int {
 	n := 0
 	for i := range ents {
-		if ents[i].Type == pb.EntryConfChange {
+		if ents[i].Type == pb.EntryConfChange || ents[i].Type == pb.EntryConfChangeV2 {
 			n++
 		}
 	}

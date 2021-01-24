@@ -1,5 +1,7 @@
 ---
 title: Role-based access control
+weight: 4100
+description: A basic authentication and role-based access control guide
 ---
 
 ## Overview
@@ -175,4 +177,4 @@ As of version v3.3 if an etcd server is launched with the option `--peer-cert-al
 See [etcd security page](https://github.com/etcd-io/etcd/blob/master/Documentation/op-guide/security.md) for more details.
 
 ## Notes on password strength
-`etcdctl` command line interface and etcd API don't check a strength (length, coexistence of numbers and alphabets, etc) of the password during creating a new user or updating password of an existing user. An administrator needs to care about a requirement of password strength by themselves.
+The `etcdctl` and etcd API do not enforce a specific password length during user creation or user password update operations. It is the responsibility of the administrator to enforce these requirements.

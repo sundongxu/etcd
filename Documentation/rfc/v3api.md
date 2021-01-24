@@ -1,5 +1,7 @@
 ---
 title: Overview
+weight: 1050
+description: etcd API design principles
 ---
 
 The etcd v3 API is designed to give users a more efficient and cleaner abstraction compared to etcd v2. There are a number of semantic and protocol changes in this new API.
@@ -209,5 +211,5 @@ WatchResponse {
 
 ```
 
-[api-protobuf]: https://github.com/etcd-io/etcd/blob/master/etcdserver/etcdserverpb/rpc.proto
-[kv-protobuf]: https://github.com/etcd-io/etcd/blob/master/mvcc/mvccpb/kv.proto
+[api-protobuf]: https://github.com/etcd-io/etcd/blob/master/api/etcdserverpb/rpc.proto
+[kv-protobuf]: https://github.com/etcd-io/etcd/blob/master/api/mvccpb/kv.proto

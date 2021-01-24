@@ -1,5 +1,7 @@
 ---
 title: Hardware recommendations
+weight: 4400
+description: Hardware guidelines for administering etcd clusters
 ---
 
 etcd usually runs well with limited resources for development or testing purposes; it’s common to develop with etcd on a  laptop or a cheap cloud machine. However, when running etcd clusters in production, some hardware guidelines are useful for proper administration. These suggestions are not hard rules; they serve as a good starting point for a robust production deployment. As always, deployments should be tested with simulated workloads before running in production.
@@ -91,6 +93,6 @@ Example application workload: A 3,000 node Kubernetes cluster
 
 [diskbench]: https://github.com/ongardie/diskbenchmark
 [fio]: https://github.com/axboe/fio
-[fio-blog-post]: https://www.ibm.com/blogs/bluemix/2019/04/using-fio-to-tell-whether-your-storage-is-fast-enough-for-etcd/
+[fio-blog-post]: https://www.ibm.com/cloud/blog/using-fio-to-tell-whether-your-storage-is-fast-enough-for-etcd
 [tuning]: ../tuning.md
 

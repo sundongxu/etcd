@@ -1,5 +1,7 @@
 ---
 title: Failure modes
+weight: 4250
+description: Kinds of failures and ectd's tolerance for them
 ---
 
 Failures are common in a large deployment of machines. A machine fails when its hardware or software malfunctions. Multiple machines fail together when there are power failures or network issues. Multiple kinds of failures can also happen at once; it is almost impossible to enumerate all possible failure cases. 
@@ -30,7 +32,7 @@ Once a majority of members works, the etcd cluster elects a new leader automatic
 
 ## Network partition
 
-A network partition is similar to a minor followers failure or a leader failure. A network partition divides the etcd cluster into two parts; one with a member majority and the other with a member minority. The majority side becomes the available cluster and the minority side is unavailable; there is no “split-brain” in etcd. 
+A network partition is similar to a minor followers failure or a leader failure. A network partition divides the etcd cluster into two parts; one with a member majority and the other with a member minority. The majority side becomes the available cluster and the minority side is unavailable. There is no “split-brain” in etcd because cluster members are explicitly added/removed with each such change is approved by the current majority of members.
 
 If the leader is on the majority side, then from the majority point of view the failure is a minority follower failure. If the leader is on the minority side, then it is a leader failure. The leader on the minority side steps down and the majority side elects a new leader.
 

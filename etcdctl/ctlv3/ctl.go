@@ -18,7 +18,7 @@ package ctlv3
 import (
 	"time"
 
-	"go.etcd.io/etcd/v3/etcdctl/ctlv3/command"
+	"go.etcd.io/etcd/etcdctl/v3/ctlv3/command"
 
 	"github.com/spf13/cobra"
 )
@@ -93,6 +93,19 @@ func init() {
 		command.NewRoleCommand(),
 		command.NewCheckCommand(),
 	)
+}
+
+func Start() error {
+	rootCmd.SetUsageFunc(usageFunc)
+	// Make help just show the usage
+	rootCmd.SetHelpTemplate(`{{.UsageString}}`)
+	return rootCmd.Execute()
+}
+
+func MustStart() {
+	if err := Start(); err != nil {
+		command.ExitWithError(command.ExitError, err)
+	}
 }
 
 func init() {

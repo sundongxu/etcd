@@ -1,5 +1,7 @@
 ---
 title: etcd3 API
+weight: 2625
+description: etcd3 API central design overview
 ---
 
 This document is meant to give an overview of the etcd3 API's central design. It is by no means all encompassing, but intended to focus on the basic ideas needed to understand etcd without the distraction of less common API calls. All etcd3 API's are defined in [gRPC services][grpc-service], which categorize remote procedure calls (RPCs) understood by the etcd server. A full listing of all etcd RPCs are documented in markdown in the [gRPC API listing][grpc-api].
@@ -475,9 +477,9 @@ message LeaseKeepAliveResponse {
 * TTL - the new time-to-live, in seconds, that the lease has remaining.
 
 [elections]: https://github.com/etcd-io/etcd/blob/master/clientv3/concurrency/election.go
-[kv-proto]: https://github.com/etcd-io/etcd/blob/master/mvcc/mvccpb/kv.proto
+[kv-proto]: https://github.com/etcd-io/etcd/blob/master/api/mvccpb/kv.proto
 [grpc-api]: ../dev-guide/api_reference_v3.md
-[grpc-service]: https://github.com/etcd-io/etcd/blob/master/etcdserver/etcdserverpb/rpc.proto
+[grpc-service]: https://github.com/etcd-io/etcd/blob/master/api/etcdserverpb/rpc.proto
 [locks]: https://github.com/etcd-io/etcd/blob/master/clientv3/concurrency/mutex.go
 [mvcc]: https://en.wikipedia.org/wiki/Multiversion_concurrency_control
 [stm]: https://github.com/etcd-io/etcd/blob/master/clientv3/concurrency/stm.go

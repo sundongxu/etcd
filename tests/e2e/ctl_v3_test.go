@@ -21,15 +21,17 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/pkg/fileutil"
-	"go.etcd.io/etcd/v3/pkg/flags"
-	"go.etcd.io/etcd/v3/pkg/testutil"
-	"go.etcd.io/etcd/v3/version"
+	"go.etcd.io/etcd/api/v3/version"
+	"go.etcd.io/etcd/pkg/v3/fileutil"
+	"go.etcd.io/etcd/pkg/v3/flags"
+	"go.etcd.io/etcd/pkg/v3/testutil"
 )
 
 func TestCtlV3Version(t *testing.T) { testCtl(t, versionTest) }
 
 func TestClusterVersion(t *testing.T) {
+	skipInShortMode(t)
+
 	tests := []struct {
 		name         string
 		rollingStart bool
@@ -51,13 +53,13 @@ func TestClusterVersion(t *testing.T) {
 				t.Skipf("%q does not exist", binary)
 			}
 			defer testutil.AfterTest(t)
-			cfg := configNoTLS
+			cfg := newConfigNoTLS()
 			cfg.execPath = binary
 			cfg.snapshotCount = 3
 			cfg.baseScheme = "unix" // to avoid port conflict
 			cfg.rollingStart = tt.rollingStart
 
-			epc, err := newEtcdProcessCluster(&cfg)
+			epc, err := newEtcdProcessCluster(t, cfg)
 			if err != nil {
 				t.Fatalf("could not start etcd process cluster (%v)", err)
 			}
@@ -69,7 +71,7 @@ func TestClusterVersion(t *testing.T) {
 
 			ctx := ctlCtx{
 				t:   t,
-				cfg: cfg,
+				cfg: *cfg,
 				epc: epc,
 			}
 			cv := version.Cluster(version.Version)
@@ -86,10 +88,10 @@ func versionTest(cx ctlCtx) {
 
 func clusterVersionTest(cx ctlCtx, expected string) {
 	var err error
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 35; i++ {
 		if err = cURLGet(cx.epc, cURLReq{endpoint: "/version", expected: expected}); err != nil {
 			cx.t.Logf("#%d: v3 is not ready yet (%v)", i, err)
-			time.Sleep(time.Second)
+			time.Sleep(200 * time.Millisecond)
 			continue
 		}
 		break
@@ -106,7 +108,7 @@ func ctlV3Version(cx ctlCtx) error {
 
 // TestCtlV3DialWithHTTPScheme ensures that client handles endpoints with HTTPS scheme.
 func TestCtlV3DialWithHTTPScheme(t *testing.T) {
-	testCtl(t, dialWithSchemeTest, withCfg(configClientTLS))
+	testCtl(t, dialWithSchemeTest, withCfg(*newConfigClientTLS()))
 }
 
 func dialWithSchemeTest(cx ctlCtx) {
@@ -200,12 +202,11 @@ func testCtl(t *testing.T, testFunc func(ctlCtx), opts ...ctlOption) {
 
 	ret := ctlCtx{
 		t:           t,
-		cfg:         configAutoTLS,
+		cfg:         *newConfigAutoTLS(),
 		dialTimeout: 7 * time.Second,
 	}
 	ret.applyOpts(opts)
 
-	mustEtcdctl(t)
 	if !ret.quorum {
 		ret.cfg = *configStandalone(ret.cfg)
 	}
@@ -217,7 +218,7 @@ func testCtl(t *testing.T, testFunc func(ctlCtx), opts ...ctlOption) {
 		ret.cfg.initialCorruptCheck = ret.initialCorruptCheck
 	}
 
-	epc, err := newEtcdProcessCluster(&ret.cfg)
+	epc, err := newEtcdProcessCluster(t, &ret.cfg)
 	if err != nil {
 		t.Fatalf("could not start etcd process cluster (%v)", err)
 	}
